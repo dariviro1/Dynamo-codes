@@ -131,6 +131,24 @@ def group_by_room(_nested_list):
     
     return _grouped
 
+def replace_empty_strings_at_index(_nested_list, _target_index, _replacement_text):
+    """
+    Replaces empty strings at a specific index in sublists with a given text.
+    
+    Args:
+        _nested_list (list): List containing sublists.
+        _target_index (int): Index to check for empty strings.
+        _replacement_text (str): Text to insert if an empty string is found.
+    
+    Returns:
+        list: Modified nested list with replacements.
+    """
+    for _sublist in _nested_list:
+        if len(_sublist) > _target_index and _sublist[_target_index] == "":
+            _sublist[_target_index] = _replacement_text
+    
+    return _nested_list
+
 # Functions for Geometry
 
 def get_elements_z_coordinates(_element_list):
@@ -216,6 +234,24 @@ def clean_sublist_text(_nested_list):
             _sublist[1] = _sublist[1].replace("Family Type: ", "").split(",")[0]
     
     return _nested_list
+
+def remove_indices_with_none(_input_list):
+    """
+    Removes indices from a list where the value is None.
+    
+    Args:
+        _input_list (list): List to process.
+    
+    Returns:
+        list: List with None values removed.
+    """
+    _cleaned_list = []
+    
+    for _item in _input_list:
+        if _item is not None:
+            _cleaned_list.append(_item)
+    
+    return _cleaned_list
 
 # Advanced Functions
 
