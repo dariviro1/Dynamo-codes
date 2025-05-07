@@ -1,5 +1,40 @@
 # Functions for Flat Lists
+def get_element_ids(_elements):
+    ids = []
+    for element in _elements:
+        if element is not None:
+            ids.append(element.Id)
+    return ids
 
+def reorder_list_by_index(_list1, _value, _list3):
+    """
+    Finds the index of a value in _list1, retrieves the corresponding element
+    from _list3 at that index, and moves it to the start of _list3.
+    
+    Args:
+        _list1 (list): List of numbers to search.
+        _value (int/float): Value to find in _list1.
+        _list3 (list): List of elements to reorder.
+    
+    Returns:
+        list: Reordered _list3 with the element at the found index moved to the start.
+    """
+    _index = -1  # Default index if value is not found
+    
+    # Find the index of the value in _list1
+    for i in range(len(_list1)):
+        if _list1[i] == _value:
+            _index = i
+            break
+    
+    # If the index is valid, reorder _list3
+    if 0 <= _index < len(_list3):
+        _element = _list3[_index]
+        _list3.pop(_index)
+        _list3.insert(0, _element)
+    
+    return _list3
+    
 def find_indices_with_word(_string_list, _target_word):
     """
     Finds indices of elements containing a specific word (case-insensitive).
