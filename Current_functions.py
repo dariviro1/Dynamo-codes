@@ -76,6 +76,32 @@ def extract_elements_by_indices(_source_list, _index_list):
     
     return _result
 
+def filter_elements_by_condition(_list1, _list2, condition="has_number"):
+    """
+    Returns elements from _list1 where the corresponding element in _list2 meets the given condition.
+
+    Parameters:
+        _list1 (list): Source list from which elements are returned.
+        _list2 (list): Reference list used to check the condition.
+        condition (str): The condition to apply on elements of _list2. Default is "has_number".
+
+    Returns:
+        list: Filtered elements from _list1.
+    """
+    result = []
+
+    for i, item in enumerate(_list2):
+        if condition == "has_number":
+            if isinstance(item, (int, float)):
+                result.append(_list1[i])
+            elif isinstance(item, str) and any(char.isdigit() for char in item):
+                result.append(_list1[i])
+            elif isinstance(item, (list, tuple)):
+                if any(isinstance(x, (int, float)) for x in item):
+                    result.append(_list1[i])
+
+    return result
+
 def calculate_differences(_value_list, _reference_value):
     """
     Calculates differences between reference and each value.
@@ -94,6 +120,71 @@ def calculate_differences(_value_list, _reference_value):
         _differences.append(_reference_value - _value)
     
     return _differences
+
+def apply_operation_to_lists(_list1, _operation, _list2):
+    """
+    Applies a mathematical operation element-wise between two lists.
+
+    Args:
+        _list1 (list): First list of numbers.
+        _list2 (list): Second list of numbers (same length as _list1).
+        _operation (str): Operation to apply. One of "+", "-", "*", "/".
+
+    Returns:
+        list: List of results after applying the operation.
+    """
+    result = []
+    for a, b in zip(_list1, _list2):
+        if _operation == "+":
+            result.append(a + b)
+        elif _operation == "-":
+            result.append(a - b)
+        elif _operation == "*":
+            result.append(a * b)
+        elif _operation == "/":
+            if b != 0:
+                result.append(a / b)
+            else:
+                result.append(None)  # Avoid division by zero
+        else:
+            result.append(None)  # Invalid operation
+    return result
+
+def get_parameter_values(_elements, _parameter_name):
+    """
+    Returns a list of parameter values for the given elements using Element.GetParameterValueByName.
+
+    Args:
+        elements: List of Revit elements.
+        parameter_name: The name of the parameter to retrieve from each element.
+
+    Returns:
+        A list of parameter values.
+    """
+    values = []
+    for elem in _elements:
+        value = elem.GetParameterValueByName(_parameter_name)
+        values.append(value)
+    return values
+
+def filter_elements_by_parameter(_elements, _parameter_name, _target_value):
+    """
+    Filters a list of Revit elements by checking if a given parameter equals a target value.
+
+    Args:
+        _elements (list): List of Revit elements.
+        _parameter_name (str): The name of the parameter to check.
+        _target_value: The value to compare against (string, number, etc.).
+
+    Returns:
+        list: A list of elements where the parameter matches the target value.
+    """
+    filtered_elements = []
+    for elem in _elements:
+        value = elem.GetParameterValueByName(_parameter_name)
+        if value == _target_value:
+            filtered_elements.append(elem)
+    return filtered_elements
 
 # Functions for Nested Lists
 
