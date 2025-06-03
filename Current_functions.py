@@ -167,24 +167,30 @@ def get_parameter_values(_elements, _parameter_name):
         values.append(value)
     return values
 
-def filter_elements_by_parameter(_elements, _parameter_name, _target_value):
+def group_elements_by_parameter_value(_elements, _parameter_name, _target_value):
     """
-    Filters a list of Revit elements by checking if a given parameter equals a target value.
+    Filters and organizes elements into a single list ordered according to _target_value.
 
     Args:
         _elements (list): List of Revit elements.
         _parameter_name (str): The name of the parameter to check.
-        _target_value: The value to compare against (string, number, etc.).
+        _target_value (list): List of values to group and order by.
 
     Returns:
-        list: A list of elements where the parameter matches the target value.
+        list: A flat list of elements, grouped and ordered by target values.
     """
-    filtered_elements = []
-    for elem in _elements:
-        value = elem.GetParameterValueByName(_parameter_name)
-        if value == _target_value:
-            filtered_elements.append(elem)
-    return filtered_elements
+    # Ensure _target_value is a list
+    if not isinstance(_target_value, list):
+        _target_value = [_target_value]
+
+    ordered_elements = []
+    for target in _target_value:
+        for elem in _elements:
+            value = elem.GetParameterValueByName(_parameter_name)
+            if value == target:
+                ordered_elements.append(elem)
+
+    return ordered_elements
 
 # Functions for Nested Lists
 
@@ -209,6 +215,58 @@ def extract_index_from_sublists(_nested_list, _target_index):
             _extracted.append(None)
     
     return _extracted
+
+def get_parameter_values_nested_at_index(_elements, _parameter_name, _index):
+    """
+    Para cada sublista en la lista anidada, obtiene el valor del parámetro
+    del elemento en _index y lo agrega al final de la sublista, respetando la estructura.
+
+    Args:
+        _elements (list of lists): Nested list de elementos.
+        _parameter_name (str): Nombre del parámetro.
+        _index (int): Índice del elemento dentro de cada sublista del cual obtener el valor.
+
+    Returns:
+        list of lists: Nested list con el valor agregado al final de cada sublista.
+    """
+    result = []
+    for sublist in _elements:
+        new_sublist = sublist[:]  # Copia para no modificar original
+        if 0 <= _index < len(sublist):
+            elem = sublist[_index]
+            value = elem.GetParameterValueByName(_parameter_name)
+            new_sublist.append(value)
+        else:
+            # Si el índice no es válido, no agrega nada
+            pass
+        result.append(new_sublist)
+    return result
+
+def calculate_and_append_to_nested_lists(_nested_list, _index1, _operation, _index2):
+    result = []
+    for sublist in _nested_list:
+        new_sublist = sublist[:]
+        
+        try:
+            a = float(sublist[_index1])
+            b = float(sublist[_index2])
+        except (ValueError, TypeError, IndexError):
+            val = None
+        else:
+            if _operation == "+":
+                val = a + b
+            elif _operation == "-":
+                val = a - b
+            elif _operation == "*":
+                val = a * b
+            elif _operation == "/":
+                val = a / b if b != 0 else None
+            else:
+                val = None
+
+        new_sublist.append(val)
+        result.append(new_sublist)
+    return result
 
 def remove_sublists_with_zero_at_index(_nested_list, _target_index):
     """
@@ -343,6 +401,28 @@ def replace_text_in_list(_string_list, _old_text, _new_text):
         _modified_list.append(_item.replace(_old_text, _new_text))
     
     return _modified_list
+
+def split_string_list_by_separator(_string_list, _separator):
+    """
+    Takes a single string or a list of strings and splits each string by the given separator.
+
+    Args:
+        _string_list (str or list): String or list of strings like "Type A, Type B" or ["Type A, Type B"]
+        _separator (str): Separator like ","
+
+    Returns:
+        list: Flat list like ['Type A', 'Type B']
+    """
+    # If input is a single string, convert to list
+    if isinstance(_string_list, str):
+        _string_list = [_string_list]
+
+    result = []
+    for item in _string_list:
+        parts = item.split(_separator)
+        for part in parts:
+            result.append(part.strip())  # trim spaces
+    return result
 
 def clean_sublist_text(_nested_list):
     """
