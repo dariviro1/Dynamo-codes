@@ -218,28 +218,61 @@ def extract_index_from_sublists(_nested_list, _target_index):
 
 def get_parameter_values_nested_at_index(_elements, _parameter_name, _index):
     """
-    Para cada sublista en la lista anidada, obtiene el valor del parámetro
-    del elemento en _index y lo agrega al final de la sublista, respetando la estructura.
+    For each sublist in the nested list, gets the parameter value
+    of the element at _index and appends it to the end of the sublist, preserving the structure.
 
     Args:
-        _elements (list of lists): Nested list de elementos.
-        _parameter_name (str): Nombre del parámetro.
-        _index (int): Índice del elemento dentro de cada sublista del cual obtener el valor.
+        _elements (list of lists): Nested list of elements.
+        _parameter_name (str): Name of the parameter.
+        _index (int): Index of the element within each sublist from which to get the value.
 
     Returns:
-        list of lists: Nested list con el valor agregado al final de cada sublista.
+        list of lists: Nested list with the value appended at the end of each sublist.
     """
     result = []
     for sublist in _elements:
-        new_sublist = sublist[:]  # Copia para no modificar original
+        new_sublist = sublist[:]  # Copy to avoid modifying the original
         if 0 <= _index < len(sublist):
             elem = sublist[_index]
             value = elem.GetParameterValueByName(_parameter_name)
             new_sublist.append(value)
         else:
-            # Si el índice no es válido, no agrega nada
+            # If the index is not valid, do not append anything
             pass
         result.append(new_sublist)
+    return result
+
+def find_matching_dataframes(_nested_list, _all_data_frames):
+    result = []
+    
+    # Iterate through each sublist in the nested list
+    for nested_sublist in _nested_list:
+        # Create a copy of the current sublist to avoid modifying the original
+        current_result = list(nested_sublist)
+        match_value = str(nested_sublist[1])  # Value to match from [1]
+        match_found = False
+        
+        # Search through all data frames for a match
+        for df_sublist in _all_data_frames:
+            comparison_value = str(df_sublist[0][0])  # Value to compare from [0][0]
+            
+            if comparison_value == match_value:
+                match_found = True
+                # Add all elements from the matching df_sublist except [0][0]
+                # First add elements from [0][1:] if they exist
+                if len(df_sublist[0]) > 1:
+                    for item in df_sublist[0][1:]:
+                        current_result.append(item)
+                
+                # Then add all elements from [1:] if they exist
+                if len(df_sublist) > 1:
+                    for item in df_sublist[1:]:
+                        current_result.append(item)
+                break  # Stop after first match
+        
+        if match_found:
+            result.append(current_result)
+    
     return result
 
 def calculate_and_append_to_nested_lists(_nested_list, _index1, _operation, _index2):
@@ -315,6 +348,176 @@ def group_by_room(_nested_list):
     
     return _grouped
 
+def group_by_string(_list_of_lists, _keyword):
+    """
+    Groups a list of lists every time a sublist starts with a string that contains the given keyword.
+
+    Args:
+        _list_of_lists (list): A list of sublists.
+        _keyword (str): The string to search for in the first element of each sublist.
+
+    Returns:
+        list: A list of grouped sublists.
+    """
+    grouped = []
+    current_group = []
+
+    for sublist in _list_of_lists:
+        if sublist and isinstance(sublist[0], str) and _keyword in sublist[0]:  
+            if current_group:
+                grouped.append(current_group) 
+            current_group = [sublist]  
+        else:
+            current_group.append(sublist) 
+
+    if current_group: 
+        grouped.append(current_group)
+
+    return grouped
+
+def build_dataframes_from_nested_list(_nested_list):
+    """
+    Converts a nested list (imported from Excel via Dynamo)
+    into a list of sublists in the format [dataframe_name, DataFrame].
+
+    Each sublist in the input represents a table with:
+    - [0][0] = dataframe name
+    - [1][1:] = column names
+    - [2:][0] = row index
+    - [2:][1:] = data values
+    """
+    _result = []
+
+    for _table in _nested_list:
+        if not _table or len(_table) < 3:
+            continue  # skip empty or incomplete tables
+
+        _df_name = _table[0][0]            # dataframe name
+        _columns = _table[1][1:]           # column names (skip the first cell)
+
+        _index = []
+        _data = []
+
+        for _row in _table[2:]:
+            _index.append(_row[0])
+            _data.append(_row[1:])
+
+        _df = pd.DataFrame(_data, index=_index, columns=_columns)
+        _result.append([_df_name, _df])
+
+    return _result
+
+def build_dataframes_from_nested_list_all_data(_nested_list):
+    """
+    Processes a nested list, where each sublist is an independent 'table'.
+    
+    For each table:
+    - Row 0 contains labels (single strings)
+    - Row 1 contains headers
+    - Rows 2+ contain data
+
+    Returns: list of pairs [labels, DataFrame] for each sublist.
+    """
+    results = []
+
+    for table in _nested_list:
+        if not isinstance(table, list) or len(table) < 3:
+            results.append([[], pd.DataFrame()])
+            continue
+
+        # Extract labels (row 0)
+        labels = [cell for cell in table[0] if isinstance(cell, str) and cell.strip() != ""]
+
+        # Extract headers (row 1)
+        header_row = table[1]
+        if len(header_row) < 2:
+            results.append([labels, pd.DataFrame()])
+            continue
+        columns = header_row[1:]
+
+        # Extract data (rows 2+)
+        data = []
+        index = []
+        for row in table[2:]:
+            if not isinstance(row, list) or len(row) < 2:
+                continue
+            index.append(row[0])
+            data.append(row[1:])
+
+        # Create DataFrame
+        try:
+            df = pd.DataFrame(data, index=index, columns=columns)
+        except Exception as e:
+            print(f"Error in table: {e}")
+            df = pd.DataFrame()
+
+        results.append([labels, df])
+
+    return results
+
+
+def get_dataframes_indexes(_nested_dfs):
+    """
+    Takes a nested list where each sublist is in the format [dataframe_name, DataFrame].
+    Returns a list of sublists in the format [dataframe_name, list_of_indexes].
+    """
+    _result = []
+
+    for _item in _nested_dfs:
+        if len(_item) != 2:
+            continue  # skip invalid structures
+
+        _df_name = _item[0]
+        _df = _item[1]
+
+        try:
+            _indexes = []
+            for _i in _df.index:
+                _indexes.append(_i)
+            _result.append([_df_name, _indexes])
+        except AttributeError:
+            continue  # skip if not a valid DataFrame
+
+    return _result
+
+def append_group_if_key_matches(_nested_list, _index, _sorted_data, _data_index=0):
+    """
+    Compares the element at _index in each sublist of _nested_list with the element at [0][0] of each sublist in _sorted_data.
+    If there's a match, appends the group (deep copied) to the sublist in _nested_list.
+    If no match is found, appends a 0.
+
+    Args:
+        _nested_list (list of lists): The list to enrich with matched groups.
+        _index (int): The index in each sublist of _nested_list to compare.
+        _sorted_data (list of single-item lists of lists): The grouped data to search.
+        _data_index (int): Ignored for now; reserved for future flexibility.
+
+    Returns:
+        list of lists: Modified nested list with matched group or 0 appended.
+    """
+    result = []
+
+    for sublist in _nested_list:
+        new_sublist = sublist[:]
+        matched = False
+
+        if 0 <= _index < len(sublist):
+            key = sublist[_index]
+
+            for group in _sorted_data:
+                if isinstance(group, list) and len(group) > 0 and len(group[0]) > 0:
+                    if group[0][0] == key:
+                        new_sublist.append(copy.deepcopy(group))
+                        matched = True
+                        break
+
+        if not matched:
+            new_sublist.append(0)
+
+        result.append(new_sublist)
+
+    return result
+
 def replace_empty_strings_at_index(_nested_list, _target_index, _replacement_text):
     """
     Replaces empty strings at a specific index in sublists with a given text.
@@ -332,6 +535,78 @@ def replace_empty_strings_at_index(_nested_list, _target_index, _replacement_tex
             _sublist[_target_index] = _replacement_text
     
     return _nested_list
+
+import re
+def compute_string_expressions(nested_list, _firts_index):
+    # Define supported math operators and a pattern to detect them
+    math_symbols = ['+', '-', '*', '/']
+    symbol_pattern = re.compile(r'([+\-*/])')
+
+    for sublist in nested_list:
+        if len(sublist) < 3:
+            continue  # Skip if the sublist is too short to process
+
+        # First element is the Revit element
+        element = sublist[0]
+
+        # Identify the index of the DataFrame (which we will ignore)
+        df_index = len(sublist)
+        for index, item in enumerate(sublist):
+            item_type = str(type(item))
+            if "DataFrame" in item_type:
+                df_index = index
+                break
+
+        # Iterate from index 2 up to (but not including) the DataFrame
+        for i in range(_firts_index, df_index):
+            current = sublist[i]
+
+            # Only process string items
+            if not isinstance(current, str):
+                continue
+
+            # Check if the string contains a math operator
+            match = symbol_pattern.search(current)
+
+            if match:
+                # If it's an expression like "Param1 / Param2"
+                symbol = match.group(1)
+                split_parts = current.split(symbol)
+
+                if len(split_parts) != 2:
+                    continue  # Skip malformed expressions
+
+                param1 = split_parts[0].strip()
+                param2 = split_parts[1].strip()
+
+                try:
+                    # Get parameter values from the Revit element
+                    value1 = element.GetParameterValueByName(param1)
+                    value2 = element.GetParameterValueByName(param2)
+                except:
+                    continue  # Skip if parameter retrieval fails
+
+                if value1 is None or value2 is None:
+                    continue  # Skip if any value is missing
+
+                try:
+                    # Compute and replace the expression result
+                    result = eval(f"{float(value1)} {symbol} {float(value2)}")
+                    sublist[i] = result
+                except Exception as e:
+                    print(f"⚠️ Error evaluating '{current}': {e}")
+                    continue
+            else:
+                # If it's a single parameter name like "Duct Height"
+                param = current.strip()
+                try:
+                    value = element.GetParameterValueByName(param)
+                    if value is not None:
+                        sublist[i] = value  # Replace with the parameter's value
+                except:
+                    continue  # Skip if retrieval fails
+
+    return nested_list
 
 # Functions for Geometry
 
@@ -458,6 +733,21 @@ def remove_indices_with_none(_input_list):
             _cleaned_list.append(_item)
     
     return _cleaned_list
+
+def split_into_sublists(_lst):
+    """
+    Takes a list and creates a sublist for each element.
+
+    Args:
+        _lst (list): Original list.
+
+    Returns:
+        list: List of sublists, each containing a single element.
+    """
+    result = []
+    for element in _lst:
+        result.append([element])
+    return result
 
 # Advanced Functions
 
