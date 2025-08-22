@@ -321,6 +321,26 @@ def remove_sublists_with_zero_at_index(_nested_list, _target_index):
     
     return _filtered
 
+def remove_sublist_at_index(nested_list, index_to_remove):
+    """
+    Removes the sublist at a given index from each sublist in a nested list.
+
+    Parameters:
+    nested_list (list of lists): The original nested list.
+    index_to_remove (int): The index of the sublist to remove in each list.
+
+    Returns:
+    list of lists: A new nested list with the specified sublist removed from each sublist.
+    """
+    result = []
+    for sublist in nested_list:
+        new_sublist = []
+        for i in range(len(sublist)):
+            if i != index_to_remove:
+                new_sublist.append(sublist[i])
+        result.append(new_sublist)
+    return result
+
 def group_by_room(_nested_list):
     """
     Groups sublists every time a 'ROOM_' pattern is found.
@@ -537,76 +557,110 @@ def replace_empty_strings_at_index(_nested_list, _target_index, _replacement_tex
     return _nested_list
 
 import re
-def compute_string_expressions(nested_list, _firts_index):
-    # Define supported math operators and a pattern to detect them
-    math_symbols = ['+', '-', '*', '/']
-    symbol_pattern = re.compile(r'([+\-*/])')
+def compute_string_expressions(nested_list, _first_index):
+    # Pattern to match potential parameter names (including spaces)
+    param_pattern = re.compile(r'([A-Za-z_][\w ]*)')
 
     for sublist in nested_list:
         if len(sublist) < 3:
-            continue  # Skip if the sublist is too short to process
+            continue  # Skip if sublist is too short
 
-        # First element is the Revit element
         element = sublist[0]
 
-        # Identify the index of the DataFrame (which we will ignore)
+        # Identify index of DataFrame element (if present)
         df_index = len(sublist)
         for index, item in enumerate(sublist):
-            item_type = str(type(item))
-            if "DataFrame" in item_type:
+            if "DataFrame" in str(type(item)):
                 df_index = index
                 break
 
-        # Iterate from index 2 up to (but not including) the DataFrame
-        for i in range(_firts_index, df_index):
+        # Iterate through the target items
+        for i in range(_first_index, df_index):
             current = sublist[i]
 
-            # Only process string items
             if not isinstance(current, str):
+                continue  # Only process strings
+
+            expression = current
+
+            # Find all parameter-like words in the expression
+            matched_params = param_pattern.findall(expression)
+
+            success = True  # Flag to check if all parameters were successfully replaced
+
+            # Replace each parameter name with its actual value from the Revit element
+            for param in matched_params:
+                param_name = param.strip()
+                try:
+                    value = element.GetParameterValueByName(param_name)
+                    if value is None:
+                        success = False
+                        break
+                    # Replace the parameter name in the expression (whole word match)
+                    expression = re.sub(rf'\b{re.escape(param)}\b', str(value), expression)
+                except:
+                    success = False
+                    break
+
+            if not success:
+                continue  # Skip this item if any parameter was not found
+
+            try:
+                result = eval(expression)
+                if isinstance(result, (int, float)):
+                    sublist[i] = round(result, 2)
+                else:
+                    sublist[i] = result
+            except Exception as e:
+                print(f" Error evaluating '{expression}': {e}")
                 continue
 
-            # Check if the string contains a math operator
-            match = symbol_pattern.search(current)
-
-            if match:
-                # If it's an expression like "Param1 / Param2"
-                symbol = match.group(1)
-                split_parts = current.split(symbol)
-
-                if len(split_parts) != 2:
-                    continue  # Skip malformed expressions
-
-                param1 = split_parts[0].strip()
-                param2 = split_parts[1].strip()
-
-                try:
-                    # Get parameter values from the Revit element
-                    value1 = element.GetParameterValueByName(param1)
-                    value2 = element.GetParameterValueByName(param2)
-                except:
-                    continue  # Skip if parameter retrieval fails
-
-                if value1 is None or value2 is None:
-                    continue  # Skip if any value is missing
-
-                try:
-                    # Compute and replace the expression result
-                    result = eval(f"{float(value1)} {symbol} {float(value2)}")
-                    sublist[i] = result
-                except Exception as e:
-                    print(f"⚠️ Error evaluating '{current}': {e}")
-                    continue
-            else:
-                # If it's a single parameter name like "Duct Height"
-                param = current.strip()
-                try:
-                    value = element.GetParameterValueByName(param)
-                    if value is not None:
-                        sublist[i] = value  # Replace with the parameter's value
-                except:
-                    continue  # Skip if retrieval fails
-
     return nested_list
+
+def replace_value_from_mapping(_nested_list, _1index, _2index):
+    for sublist in _nested_list:
+        # Skip if the sublist is shorter than the required indices
+        if len(sublist) <= max(_1index, _2index):
+            continue
+
+        mapping_str = sublist[_1index]
+        value_to_check = sublist[_2index]
+
+        # Skip if the mapping is not a valid string
+        if not isinstance(mapping_str, str):
+            continue
+
+        # Build the mapping dictionary from the string
+        mapping = {}
+        try:
+            pairs = mapping_str.split(',')
+            for pair in pairs:
+                key_val = pair.split('=')
+                if len(key_val) != 2:
+                    continue
+                key = float(key_val[0].strip())
+                val = float(key_val[1].strip())
+                mapping[key] = val
+        except:
+            continue  # Skip this sublist if parsing fails
+
+        # Proceed if value to check is numeric
+        if isinstance(value_to_check, (int, float)):
+            closest_key = None
+            smallest_diff = float('inf')
+
+            # Find the closest key by absolute difference
+            for key in mapping:
+                diff = abs(value_to_check - key)
+                if diff < smallest_diff:
+                    smallest_diff = diff
+                    closest_key = key
+
+            # Replace the value if a closest key was found
+            if closest_key is not None:
+                sublist[_2index] = mapping[closest_key]
+
+    return _nested_list
 
 # Functions for Geometry
 
@@ -676,6 +730,27 @@ def replace_text_in_list(_string_list, _old_text, _new_text):
         _modified_list.append(_item.replace(_old_text, _new_text))
     
     return _modified_list
+
+def add_data_to_strings(_strings_list, _data1):
+    """
+    Takes a list of strings and appends the corresponding element from _data1 to each element of _strings_list.
+
+    Parameters:
+    _strings_list (list): A list of strings to modify.
+    _data1 (list): A list of strings to add to the corresponding indices.
+
+    Returns:
+    list: A new list with modified strings.
+    """
+    result = []
+    for index in range(len(_strings_list)):
+        new_string = (
+            "New view called " + _strings_list[index] +
+            " showing " + _data1[index] +
+            " elements."
+        )
+        result.append(new_string)
+    return result
 
 def split_string_list_by_separator(_string_list, _separator):
     """
